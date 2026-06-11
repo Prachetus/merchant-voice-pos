@@ -1,0 +1,219 @@
+openapi: 3.0.3
+info:
+  title: Merchant Voice POS API
+  version: 1.0.0
+  description: API specification for the voice+text POS backend (auth, inventory, POS, voice parsing, receipts).
+servers:
+  - url: /
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        storeName:
+          type: string
+        role:
+          type: string
+          enum: [admin, cashier]
+      required: [email, name]
+
+    InventoryItem:
+      type: object
+      properties:
+        _id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        unit:
+          type: string
+        unitConversion:
+          type: number
+          description: "multiplier to convert to base unit"
+        stock:
+          type: number
+        reorderLevel:
+          type: number
+      required: [name, unit, stock]
+
+    VoiceEvent:
+      type: object
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        rawText:
+          type: string
+        parsed:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    TransactionLine:
+      type: object
+      properties:
+        itemId:
+          type: string
+        name:
+          type: string
+        sku:
+          type: string
+        qty:
+          type: number
+        unit:
+          type: string
+        price:
+          type: number
+
+    Transaction:
+      type: object
+      properties:
+        _id:
+          type: string
+        storeId:
+          type: string
+        userId:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionLine'
+        total:
+          type: number
+        paymentMethod:
+          type: string
+          enum: [cash]
+        createdAt:
+          type: string
+          format: date-time
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /api/auth/register:
+    post:
+      summary: Register a merchant user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                name:
+                  type: string
+                storeName:
+                  type: string
+      responses:
+        '200':
+          description: Registered
+  /api/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Token
+  /api/inventory:
+    get:
+      summary: List or search inventory
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+      responses:
+        '200':
+          description: items list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItem'
+    post:
+      summary: Create inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryItem'
+      responses:
+        '201':
+          description: created
+  /api/voice/parse:
+    post:
+      summary: Parse free-form voice/text into structured commands
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: parsed result
+  /api/voice/commit:
+    post:
+      summary: Commit parsed voice command to a transaction/inventory change
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: committed
+  /api/pos/checkout:
+    post:
+      summary: Create a transaction (cash)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+      responses:
+        '201':
+          description: receipt created

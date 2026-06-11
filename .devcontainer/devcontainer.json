@@ -1,0 +1,19 @@
+{
+  "name": "merchant-voice-pos",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "frontend",
+  "workspaceFolder": "/workspaces/merchant-voice-pos",
+  "runServices": ["mongo", "backend", "frontend"],
+  "forwardPorts": [3000, 5000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Frontend",
+      "onAutoForward": "openBrowser"
+    },
+    "5000": {
+      "label": "Backend",
+      "onAutoForward": "silent"
+    }
+  },
+  "shutdownAction": "stopCompose"
+}
