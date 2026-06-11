@@ -41,6 +41,29 @@ if (SpeechRecognition) {
             .then(response => response.json())
             .then(data => {
                 output.innerHTML += `<br><br><span style="color: #2ed573;">🟢 Backend says: ${data.message}</span>`;
+                
+                // If Python tripped the alarm...
+                if (data.alert) {
+                    // 1. Build the red warning box
+                    let alertHTML = `
+                        <div style="background-color: #ff4757; color: white; padding: 15px; border-radius: 8px; font-weight: bold; margin-top: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            ${data.alert}
+                    `;
+                    
+                    // 2. Build the WhatsApp button if the URL exists
+                    if (data.wa_url) {
+                        alertHTML += `
+                            <br><br>
+                            <a href="${data.wa_url}" target="_blank" style="background-color: #25D366; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-block; font-size: 14px;">
+                                📱 Send WhatsApp Alert
+                            </a>
+                        `;
+                    }
+                    
+                    // 3. Close the box and print it to the screen
+                    alertHTML += `</div>`;
+                    output.innerHTML += alertHTML;
+                }
             })
             .catch(error => {
                 console.error("Error sending to backend:", error);

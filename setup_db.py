@@ -7,7 +7,7 @@ def build_database():
         conn = mysql.connector.connect(
             host='localhost',
             user='root',
-            password='' # <--- Put your password here if you have one
+            password='1234' # <--- Put your password here if you have one
         )
         cursor = conn.cursor()
 

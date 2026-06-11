@@ -1,17 +1,9 @@
 from flask import Flask, render_template, request, jsonify
-import mysql.connector
+from database import get_db_connection  # <--- NEW IMPORT
 import re
+import urllib.parse
 
 app = Flask(__name__)
-
-# --- DATABASE CONFIGURATION ---
-# Update these with your actual local MySQL credentials
-DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'your_password', 
-    'database': 'voice_pos_db'
-}
 
 # --- DATA CLEANING PIPELINE ---
 def parse_voice_order(text):
@@ -57,38 +49,56 @@ def home():
 def process_voice():
     data = request.get_json()
     spoken_text = data.get('text', '')
-    
-    # 1. Extract the data
     quantity, item = parse_voice_order(spoken_text)
     
     print(f"\n🎤 [RAW]: {spoken_text}")
     print(f"📦 [EXTRACTED] -> Item: {item} | Qty: {quantity}")
     
-    # 2. Insert into MySQL (Simulated for now until we build the tables)
+    alert_message = None
+    wa_url = None # NEW: Variable to hold our WhatsApp link
+
     try:
-        # Uncomment this block once your database is set up!
-        '''
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Deduct the quantity from inventory
-        sql = "UPDATE inventory SET stock = stock - %s WHERE item_name LIKE %s"
-        cursor.execute(sql, (quantity, f"%{item}%"))
+
+        # 1. Deduct the quantity from inventory
+        update_sql = "UPDATE inventory SET stock = stock - %s WHERE item_name LIKE %s"
+        cursor.execute(update_sql, (quantity, f"%{item}%"))
+
+        # 2. Check if the item just hit low stock
+        check_sql = "SELECT item_name, stock, reorder_threshold FROM inventory WHERE item_name LIKE %s"
+        cursor.execute(check_sql, (f"%{item}%",))
+        result = cursor.fetchone()
+
+        if result:
+            db_item_name, current_stock, threshold = result
+
+            if current_stock <= threshold:
+                alert_message = f"⚠️ URGENT: {db_item_name.title()} is low! Only {current_stock} left."
+                print(f"🚨 [ALERT TRIPPED]: {alert_message}")
+
+                # --- 🟢 THE ZERO-SETUP WHATSAPP TRICK ---
+                # Put your actual phone number here (Include country code, e.g., 91 for India, but NO '+' sign)
+                merchant_phone = "919451620308" 
+                encoded_msg = urllib.parse.quote(alert_message)
+                wa_url = f"https://wa.me/{merchant_phone}?text={encoded_msg}"
+
         conn.commit()
-        
         cursor.close()
         conn.close()
-        '''
+
         message = f"Successfully logged {quantity} of '{item}'"
-        print("✅ [DATABASE]: Simulated successful update.\n")
-        
+
     except Exception as e:
         message = f"Database error: {str(e)}"
         print(f"❌ [DATABASE ERROR]: {str(e)}\n")
 
+    # 🟢 NEW: Send the wa_url back to the browser alongside the alert
     return jsonify({
         "status": "success", 
-        "message": message
+        "message": message,
+        "alert": alert_message,
+        "wa_url": wa_url
     })
 
 if __name__ == '__main__':
