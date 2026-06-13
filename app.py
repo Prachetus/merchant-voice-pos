@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from database import get_db_connection  # <--- NEW IMPORT
+from database import get_db_connection 
 import re
 import urllib.parse
 
@@ -32,7 +32,6 @@ def parse_voice_order(text):
     elif first_word in word_to_num:
         quantity = word_to_num[first_word]
     else:
-        # Default to 1 if no quantity is explicitly stated
         quantity = 1 
         
     # The rest of the string is assumed to be the item
@@ -55,11 +54,11 @@ def process_voice():
     print(f"📦 [EXTRACTED] -> Item: {item} | Qty: {quantity}")
     
     alert_message = None
-    wa_url = None # NEW: Variable to hold our WhatsApp link
+    wa_url = None # Variable to hold our WhatsApp link
 
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
 
         # 1. Deduct the quantity from inventory
         update_sql = "UPDATE inventory SET stock = stock - %s WHERE item_name LIKE %s"
@@ -78,7 +77,7 @@ def process_voice():
                 print(f"🚨 [ALERT TRIPPED]: {alert_message}")
 
                 # --- 🟢 THE ZERO-SETUP WHATSAPP TRICK ---
-                # Put your actual phone number here (Include country code, e.g., 91 for India, but NO '+' sign)
+                # actual phone number here (Include country code, e.g., 91 for India, but NO '+' sign)
                 merchant_phone = "919451620308" 
                 encoded_msg = urllib.parse.quote(alert_message)
                 wa_url = f"https://wa.me/{merchant_phone}?text={encoded_msg}"
@@ -100,6 +99,51 @@ def process_voice():
         "alert": alert_message,
         "wa_url": wa_url
     })
+
+@app.route('/restock', methods=['POST'])
+def restock_inventory():
+    data = request.get_json()
+    item = data.get('item', '')
+    
+    # Ensure quantity is a positive integer
+    try:
+        quantity = abs(int(data.get('quantity', 0)))
+    except ValueError:
+        return jsonify({"status": "error", "message": "Quantity must be a number."})
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(buffered=True)
+        
+        # 1. Verify the item actually exists first
+        check_sql = "SELECT item_name, stock FROM inventory WHERE item_name LIKE %s"
+        cursor.execute(check_sql, (f"%{item}%",))
+        result = cursor.fetchone()
+        
+        if result:
+            db_item_name, current_stock = result
+            
+            # 2. Add the new shipment to the existing stock
+            update_sql = "UPDATE inventory SET stock = stock + %s WHERE item_name LIKE %s"
+            cursor.execute(update_sql, (quantity, f"%{item}%"))
+            conn.commit()
+            
+            new_stock = current_stock + quantity
+            message = f"📦 Restock successful! Added {quantity} to '{db_item_name.title()}'. New total: {new_stock}."
+            print(f"🟢 [RESTOCK]: {message}")
+            
+        else:
+            message = f"❌ Item '{item}' not found in database. Cannot restock."
+            print(f"⚠️ [RESTOCK FAILED]: {message}")
+            
+        cursor.close()
+        conn.close()
+        
+    except Exception as e:
+        message = f"Database error: {str(e)}"
+        print(f"❌ [DATABASE ERROR]: {str(e)}\n")
+
+    return jsonify({"status": "success", "message": message})
 
 if __name__ == '__main__':
     app.run(debug=True)

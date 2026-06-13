@@ -93,3 +93,44 @@ if (SpeechRecognition) {
 } else {
     output.innerHTML = "Your browser does not support Voice Recognition. Please use standard Chrome.";
 }
+
+function submitRestock() {
+    // 1. Grab what the merchant typed into the boxes
+    const item = document.getElementById('restockItem').value;
+    const quantity = document.getElementById('restockQty').value;
+    const outputDiv = document.getElementById('restockOutput');
+
+    // 2. Make sure they actually typed something
+    if (!item || !quantity) {
+        outputDiv.innerHTML = `<span style="color: red;">⚠️ Please fill out both fields.</span>`;
+        return;
+    }
+
+    outputDiv.innerHTML = `<span style="color: gray;">Processing restock...</span>`;
+
+    // 3. Send the data to your Python backend
+    fetch('/restock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            item: item, 
+            quantity: quantity 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // 4. Print the success or error message on the screen!
+        if (data.status === "success") {
+            outputDiv.innerHTML = `<span style="color: #2ed573;">${data.message}</span>`;
+            // Clear the form boxes
+            document.getElementById('restockItem').value = '';
+            document.getElementById('restockQty').value = '';
+        } else {
+            outputDiv.innerHTML = `<span style="color: #ff4757;">${data.message}</span>`;
+        }
+    })
+    .catch(error => {
+        outputDiv.innerHTML = `<span style="color: #ff4757;">Error connecting to server.</span>`;
+        console.error('Error:', error);
+    });
+}
